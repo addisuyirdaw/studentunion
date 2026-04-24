@@ -1,12 +1,13 @@
 /** @format */
 
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
-require("dotenv").config();
+const { MongoMemoryServer } = require("mongodb-memory-server");
 
 // Import routes
 const authRoutes = require("./routes/auth");
@@ -36,18 +37,20 @@ app.use(
       const allowedOrigins = [
         // Local development
         "http://localhost:3000",
+        "https://localhost:3000",
         "http://localhost:5173",
+        "https://localhost:5173",
         "http://localhost:8080",
+        "https://localhost:8080",
         // Custom domain from env
         process.env.FRONTEND_URL,
       ].filter(Boolean);
 
-      // Allow any Vercel deployment URL (covers all preview and production deployments)
       const isVercelUrl = /^https:\/\/.*\.vercel\.app$/.test(origin);
-      // Allow exact matches
+      const isCodespaceUrl = /^https:\/\/.*\.githubpreview\.dev$/.test(origin);
       const isAllowed = allowedOrigins.includes(origin);
 
-      if (isVercelUrl || isAllowed) {
+      if (isVercelUrl || isCodespaceUrl || isAllowed) {
         callback(null, true);
       } else {
         console.warn(`CORS blocked origin: ${origin}`);
@@ -100,6 +103,27 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/messages", messageRoutes);
 
+// Root endpoint
+app.get("/", (req, res) => {
+  return res.status(200).json({
+    success: true,
+    message: "Student Union backend is running.",
+    health: "/health",
+    apiBase: "/api",
+    availableRoutes: [
+      "/api/auth",
+      "/api/users",
+      "/api/complaints",
+      "/api/clubs",
+      "/api/elections",
+      "/api/posts",
+      "/api/contact",
+      "/api/reports",
+      "/api/messages"
+    ]
+  });
+});
+
 // 404 handler
 app.use("*", (req, res) => {
   return res.status(404).json({
@@ -112,38 +136,78 @@ app.use("*", (req, res) => {
 // Error handling middleware - MUST be the last middleware
 app.use(errorHandler);
 
-console.log("MongoDB URI:", process.env.MONGODB_URI);
+console.log("MongoDB URI:", process.env.MONGO_URI || process.env.MONGODB_URI);
 
-// Database connection with retry logic
+let memoryServer;
+
 const connectDB = async (retries = 5, delay = 5000) => {
   try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error("MONGODB_URI is not defined in environment variables");
+    let mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/student_union_db";
+
+    if (!process.env.MONGO_URI && !process.env.MONGODB_URI) {
+      console.warn("⚠️ MONGO_URI not set; trying local MongoDB at 127.0.0.1:27017.");
     }
 
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 120000,
-      connectTimeoutMS: 30000,
-      maxPoolSize: 10,
-      minPoolSize: 5,
-      maxIdleTimeMS: 60000,
-      waitQueueTimeoutMS: 10000,
-      heartbeatFrequencyMS: 30000,
-      retryWrites: true,
-      w: 'majority'
-    });
-
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    console.log(`✅ Database: ${conn.connection.name}`);
-
-    // Create default admin user
     try {
-      await createDefaultAdmin();
-    } catch (adminError) {
-      console.warn("⚠️ Admin creation warning:", adminError.message);
+      const conn = await mongoose.connect(mongoUri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 30000,
+        socketTimeoutMS: 120000,
+        connectTimeoutMS: 30000,
+        maxPoolSize: 10,
+        minPoolSize: 5,
+        maxIdleTimeMS: 60000,
+        waitQueueTimeoutMS: 10000,
+        heartbeatFrequencyMS: 30000,
+        retryWrites: true,
+        w: 'majority'
+      });
+
+      console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+      console.log(`✅ Database: ${conn.connection.name}`);
+
+      // Create default admin user
+      try {
+        await createDefaultAdmin();
+      } catch (adminError) {
+        console.warn("⚠️ Admin creation warning:", adminError.message);
+      }
+      return;
+    } catch (error) {
+      const isLocalUri = /^(mongodb:\/\/)(localhost|127\.0\.0\.1)(:\d+)?\//.test(mongoUri);
+      if (isLocalUri && process.env.NODE_ENV !== 'production') {
+        console.warn("⚠️ Local MongoDB unavailable; falling back to in-memory MongoDB for development.");
+        memoryServer = await MongoMemoryServer.create();
+        mongoUri = memoryServer.getUri();
+
+        const conn = await mongoose.connect(mongoUri, {
+          useNewUrlParser: true,
+          useUnifiedTopology: true,
+          serverSelectionTimeoutMS: 30000,
+          socketTimeoutMS: 120000,
+          connectTimeoutMS: 30000,
+          maxPoolSize: 10,
+          minPoolSize: 5,
+          maxIdleTimeMS: 60000,
+          waitQueueTimeoutMS: 10000,
+          heartbeatFrequencyMS: 30000,
+          retryWrites: true,
+          w: 'majority'
+        });
+
+        console.log(`✅ In-memory MongoDB started: ${mongoUri}`);
+        console.log(`✅ Database: ${conn.connection.name}`);
+
+        try {
+          await createDefaultAdmin();
+        } catch (adminError) {
+          console.warn("⚠️ Admin creation warning:", adminError.message);
+        }
+        return;
+      }
+
+      throw error;
     }
   } catch (error) {
     console.error(`❌ Database connection error (${retries} retries left):`, error.message);
@@ -190,6 +254,10 @@ const startServer = async () => {
         try {
           await mongoose.connection.close();
           console.log("✅ MongoDB connection closed");
+          if (memoryServer) {
+            await memoryServer.stop();
+            console.log("✅ In-memory MongoDB server stopped");
+          }
           process.exit(0);
         } catch (err) {
           console.error("❌ Error closing MongoDB connection:", err);

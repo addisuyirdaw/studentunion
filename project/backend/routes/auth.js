@@ -15,24 +15,35 @@ const {
 const router = express.Router();
 
 // Email transporter configuration
-const transporter = nodemailer.createTransport({
-	host: process.env.SMTP_HOST || "smtp.gmail.com",
-	port: process.env.SMTP_PORT || 587,
-	secure: false, // true for 465, false for other ports
-	auth: {
-		user: process.env.SMTP_EMAIL,
-		pass: process.env.SMTP_PASSWORD,
-	},
-});
+const smtpUser = process.env.SMTP_EMAIL || process.env.EMAIL_USER;
+const smtpPass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASS;
+const smtpAuth = smtpUser && smtpPass ? { user: smtpUser, pass: smtpPass } : undefined;
 
-// Verify transporter configuration on startup
-transporter.verify(function (error, success) {
-	if (error) {
-		console.error("SMTP Configuration Error:", error.message);
-	} else {
-		console.log("SMTP Server is ready to send emails");
-	}
-});
+const transporterOptions = {
+	host: process.env.SMTP_HOST || "smtp.gmail.com",
+	port: Number(process.env.SMTP_PORT || 587),
+	secure: false, // true for 465, false for other ports
+};
+
+if (smtpAuth) {
+	transporterOptions.auth = smtpAuth;
+}
+
+const transporter = nodemailer.createTransport(transporterOptions);
+
+if (smtpAuth) {
+	transporter.verify(function (error, success) {
+		if (error) {
+			console.error("SMTP Configuration Error:", error.message);
+		} else {
+			console.log("SMTP Server is ready to send emails");
+		}
+	});
+} else {
+	console.warn(
+		"SMTP is not configured. Email sending will be disabled until SMTP_EMAIL and SMTP_PASSWORD are provided."
+	);
+}
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -489,6 +500,14 @@ router.post("/forgot-password", async (req, res) => {
 		user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
 
 		await user.save({ validateBeforeSave: false });
+
+		if (!smtpAuth) {
+			console.warn("Forgot password request received but SMTP is not configured.");
+			return res.status(500).json({
+				success: false,
+				message: "Email service is not configured. Please contact the system administrator.",
+			});
+		}
 
 		// Create reset url
 		const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;

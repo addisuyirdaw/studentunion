@@ -55,12 +55,9 @@ const createDefaultAdmin = async () => {
       });
 
       if (!existingAdmin) {
-        // Hash password before creating
-        const hashedPassword = await bcrypt.hash(adminData.password, 12);
-        
         const admin = await User.create({
           ...adminData,
-          password: hashedPassword
+          password: adminData.password
         });
         console.log(`✅ Admin created: ${adminData.username}`);
       } else {
@@ -120,12 +117,9 @@ const createDefaultAdmin = async () => {
       });
 
       if (!existingStudent) {
-        // Hash password before creating
-        const hashedPassword = await bcrypt.hash(studentData.password, 12);
-        
         const student = await User.create({
           ...studentData,
-          password: hashedPassword
+          password: studentData.password
         });
         console.log(`✅ Sample student created: ${studentData.username}`);
       } else {

@@ -140,11 +140,10 @@ router.post('/nuclear-recreate-admins', async (req, res) => {
       // Delete existing user
       await User.deleteOne({ username: adminData.username });
 
-      // Create new user with hashed password
-      const hashedPassword = await bcrypt.hash(adminData.password, 12);
+      // Create new user with raw password and let the model hash it
       const user = await User.create({
         ...adminData,
-        password: hashedPassword
+        password: adminData.password
       });
 
       results.push({ username: adminData.username, status: 'recreated' });

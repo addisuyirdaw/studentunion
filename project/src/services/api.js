@@ -26,13 +26,20 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        data = { message: text || 'Empty response from server' };
+      }
 
       if (!response.ok) {
-        const error = new Error(data.message || `HTTP error! status: ${response.status}`);
+        const error = new Error(data?.message || `HTTP error! status: ${response.status}`);
         error.status = response.status;
         error.response = { data };
-        if (data.errors) {
+        if (data?.errors) {
           console.error('Validation errors:', data.errors);
         }
         throw error;
