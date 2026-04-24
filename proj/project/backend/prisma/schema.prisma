@@ -1,0 +1,388 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  CLUB_REP
+  COORDINATOR
+}
+
+enum PlanStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+}
+
+model User {
+  id              String    @id @default(uuid())
+  name            String
+  username        String    @unique
+  email           String?   @unique
+  password        String
+  isActive        Boolean   @default(true)
+  department      String
+  year            String
+  isAdmin         Boolean   @default(false)
+  role            Role      @default(STUDENT)
+  isLocked        Boolean   @default(false)
+  loginAttempts   Int       @default(0)
+  lockUntil       DateTime?
+  lastLogin       DateTime?
+  profileImage    String?   @default("https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=400")
+  studentId       String?   @unique
+  phoneNumber     String?
+  address         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relationships
+  joinedClubs         ClubMember[]
+  clubPresident       Club[]    @relation("President")
+  clubVicePresident   Club[]    @relation("VicePresident")
+  clubSecretary       Club[]    @relation("Secretary")
+  clubTreasurer       Club[]    @relation("Treasurer")
+
+  eventAttendees      EventAttendee[]
+  complaints          Complaint[]         @relation("ComplaintAuthor")
+  assignedComplaints  Complaint[]         @relation("AssignedTo")
+  complaintResponses  ComplaintResponse[]
+
+  assignedContacts    Contact[]      @relation("AssignedContact")
+  contactReplies      ContactReply[]
+
+  votedElections      ElectionVoter[]
+  createdElections    Election[]     @relation("ElectionCreator")
+  
+  posts               Post[]         @relation("PostAuthor")
+  postLikes           PostLike[]
+  postComments        PostComment[]
+  eventRegistrations  PostAttendee[]
+  
+  representedClubs    Club[]         @relation("ClubRepresentative")
+  coordinatorAnnouncements Announcement[] @relation("AnnouncementCoordinator")
+}
+
+model Club {
+  id              String    @id @default(uuid())
+  name            String    @unique
+  description     String
+  category        String
+  founded         String
+  image           String?   @default("https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=400")
+  status          String    @default("pending_approval")
+  contactEmail    String?
+  officeLocation  String?
+  contactPhone    String?
+  website         String?
+  meetingSchedule String?
+  requirements    String?
+  budgetAllocated Float     @default(0)
+  budgetSpent     Float     @default(0)
+  budgetRemaining Float     @default(0)
+  facebook        String?
+  instagram       String?
+  twitter         String?
+  telegram        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  representativeId String?
+  representative  User?     @relation("ClubRepresentative", fields: [representativeId], references: [id])
+  
+  septemberPlanUrl String?
+  juneReportUrl    String?
+  planStatus       PlanStatus @default(PENDING)
+
+  members         ClubMember[]
+  events          ClubEvent[]
+  achievements    ClubAchievement[]
+  activities      ClubActivity[]
+
+  presidentId     String?
+  president       User?   @relation("President", fields: [presidentId], references: [id])
+  vicePresidentId String?
+  vicePresident   User?   @relation("VicePresident", fields: [vicePresidentId], references: [id])
+  secretaryId     String?
+  secretary       User?   @relation("Secretary", fields: [secretaryId], references: [id])
+  treasurerId     String?
+  treasurer       User?   @relation("Treasurer", fields: [treasurerId], references: [id])
+}
+
+model ClubMember {
+  id              String    @id @default(uuid())
+  clubId          String
+  club            Club      @relation(fields: [clubId], references: [id])
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  fullName        String
+  department      String
+  year            String
+  background      String?
+  role            String    @default("member")
+  status          String    @default("pending")
+  joinedAt        DateTime  @default(now())
+}
+
+model ClubEvent {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime
+  location    String?
+  status      String   @default("planned")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clubs       Club[]
+  attendees   EventAttendee[]
+}
+
+model EventAttendee {
+  id          String    @id @default(uuid())
+  eventId     String
+  event       ClubEvent @relation(fields: [eventId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+model ClubAchievement {
+  id          String    @id @default(uuid())
+  clubId      String
+  club        Club      @relation(fields: [clubId], references: [id])
+  title       String
+  description String?
+  date        DateTime?
+}
+
+model Announcement {
+  id            String   @id @default(uuid())
+  title         String
+  content       String
+  createdAt     DateTime @default(now())
+  
+  coordinatorId String
+  coordinator   User     @relation("AnnouncementCoordinator", fields: [coordinatorId], references: [id])
+}
+
+model Complaint {
+  id                  String    @id @default(uuid())
+  title               String
+  description         String
+  category            String
+  priority            String    @default("medium")
+  status              String    @default("submitted")
+  branch              String?
+  caseId              String    @unique
+  isUrgent            Boolean   @default(false)
+  resolvedAt          DateTime?
+  closedAt            DateTime?
+  satisfactionRating  Int?
+  satisfactionFeedback String?
+  tags                String[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  submittedById       String
+  submittedBy         User      @relation("ComplaintAuthor", fields: [submittedById], references: [id])
+  assignedToId        String?
+  assignedTo          User?     @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  responses           ComplaintResponse[]
+  evidence            ComplaintEvidence[]
+}
+
+model ComplaintResponse {
+  id          String    @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+  author      String
+  authorId    String
+  user        User      @relation(fields: [authorId], references: [id])
+  message     String
+  timestamp   DateTime  @default(now())
+  isOfficial  Boolean   @default(false)
+}
+
+model ComplaintEvidence {
+  id           String    @id @default(uuid())
+  complaintId  String
+  complaint    Complaint @relation(fields: [complaintId], references: [id])
+  filename     String?
+  originalName String?
+  mimetype     String?
+  size         Int?
+  uploadDate   DateTime  @default(now())
+}
+
+model Contact {
+  id          String    @id @default(uuid())
+  name        String
+  email       String
+  subject     String?
+  message     String
+  category    String    @default("general")
+  status      String    @default("new")
+  priority    String    @default("medium")
+  ipAddress   String?
+  userAgent   String?
+  isSpam      Boolean   @default(false)
+  tags        String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  assignedToId String?
+  assignedTo   User?    @relation("AssignedContact", fields: [assignedToId], references: [id])
+  replies      ContactReply[]
+}
+
+model ContactReply {
+  id          String    @id @default(uuid())
+  contactId   String
+  contact     Contact   @relation(fields: [contactId], references: [id])
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  message     String
+  sentAt      DateTime  @default(now())
+}
+
+model Election {
+  id               String   @id @default(uuid())
+  title            String
+  description      String
+  startDate        DateTime
+  endDate          DateTime
+  status           String   @default("upcoming")
+  totalVotes       Int      @default(0)
+  eligibleVoters   Int      @default(0)
+  electionType     String   @default("general")
+  rules            String[]
+  isPublic         Boolean  @default(true)
+  resultsPublished Boolean  @default(false)
+  publishedAt      DateTime?
+  createdById      String
+  createdBy        User     @relation("ElectionCreator", fields: [createdById], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  candidates       ElectionCandidate[]
+  voters           ElectionVoter[]
+}
+
+model ElectionCandidate {
+  id           String   @id @default(uuid())
+  electionId   String
+  election     Election @relation(fields: [electionId], references: [id])
+  name         String
+  username     String
+  department   String
+  year         String
+  academicYear String
+  position     String
+  profileImage String?  @default("https://images.pexels.com/photos/3763188/pexels-photo-3763188.jpeg?auto=compress&cs=tinysrgb&w=400")
+  platform     String[]
+  biography    String?
+  votes        Int      @default(0)
+  
+  voters       ElectionVoter[]
+}
+
+model ElectionVoter {
+  id                  String   @id @default(uuid())
+  electionId          String
+  election            Election @relation(fields: [electionId], references: [id])
+  userId              String
+  user                User     @relation(fields: [userId], references: [id])
+  candidateId         String
+  candidate           ElectionCandidate @relation(fields: [candidateId], references: [id])
+  votedAt             DateTime @default(now())
+  ipAddress           String?
+}
+
+model Post {
+  id                   String    @id @default(uuid())
+  title                String
+  content              String
+  type                 String    @default("News")
+  category             String    @default("General")
+  date                 DateTime  @default(now())
+  image                String?
+  location             String?
+  time                 String?
+  eventDate            DateTime?
+  registrationRequired Boolean   @default(false)
+  maxAttendees         Int?
+  important            Boolean   @default(false)
+  expiryDate           DateTime?
+  targetAudience       String    @default("all")
+  specificAudience     String[]
+  status               String    @default("published")
+  tags                 String[]
+  views                Int       @default(0)
+  isPinned             Boolean   @default(false)
+  publishedAt          DateTime?
+  scheduledFor         DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  authorId             String
+  author               User      @relation("PostAuthor", fields: [authorId], references: [id])
+
+  images               PostImage[]
+  attendees            PostAttendee[]
+  likes                PostLike[]
+  comments             PostComment[]
+}
+
+model PostImage {
+  id          String   @id @default(uuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id])
+  url         String
+  caption     String?
+  uploadDate  DateTime @default(now())
+}
+
+model PostAttendee {
+  id          String   @id @default(uuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model PostLike {
+  id          String   @id @default(uuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  likedAt     DateTime @default(now())
+}
+
+model PostComment {
+  id          String   @id @default(uuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  content     String
+  createdAt   DateTime @default(now())
+}
+
+model ClubActivity {
+  id          String   @id @default(uuid())
+  clubId      String
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  type        String   @default("REPORT") // 'REPORT' or 'EVENT'
+  title       String
+  description String?
+  fileUrl     String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
