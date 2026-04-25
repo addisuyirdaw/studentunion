@@ -46,30 +46,35 @@ export function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+  try {
+      // 1. Send the login request
+      const response = await api.post('/auth/login', { 
+        username: formData.username, 
+        password: formData.password 
+      });
 
-    try {
-      if (!validateUsername(formData.username)) {
-        toast.error("Username must start with 'dbu' followed by 6 to 10 digits (e.g., dbu150092)");
-        return;
-      }
+      // 2. Extract the data
+      const { token, role } = response.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('role', role);
 
-      if (!validatePassword(formData.password)) {
-        toast.error("Password must be at least 8 characters with uppercase, lowercase, digit, and symbol");
-        return;
-      }
+      toast.success("Login successful!");
 
-      if (loginType === "admin") {
-        await adminLogin(formData.username, formData.password);
-        toast.success("Admin login successful");
+      // 3. Smart Redirect based on role from Backend
+      if (role === 'ADMIN') {
+        navigate('/admin-dashboard');
       } else {
-        await login(formData.username, formData.password);
-        toast.success("Login successful");
+        navigate('/dashboard');
       }
+
     } catch (error) {
-      toast.error(error.message || "Invalid credentials");
+      console.error("Login error:", error);
+      toast.error(error.response?.data?.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
+    
+  
   };
 
   const handleRegister = async (e) => {
