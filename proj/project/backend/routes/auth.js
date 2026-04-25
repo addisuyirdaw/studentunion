@@ -457,9 +457,14 @@ router.put("/change-password", protect, async (req, res) => {
 // @access  Private
 router.post("/logout", protect, (req, res) => {
 	return res.json({
-		success: true,
-		message: "Logged out successfully",
-	});
+  success: true,
+  token: token,
+  role: user.role,  // This is the key part!
+  user: {
+    id: user.id,
+    username: user.username,
+    name: user.name
+  }
 });
 
 module.exports = router;
