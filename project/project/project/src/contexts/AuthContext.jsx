@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
       const studentUser = {
         ...response.user,
         token: response.token,
-        isAdmin: response.user.role === "admin" || response.user.isAdmin,
+        isAdmin: response.user.role === "admin" || response.user.role === "super_admin" || response.user.isAdmin,
       };
 
       localStorage.setItem("user", JSON.stringify(studentUser));
@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       const response = await apiService.adminLogin({ username, password });
 
-      if (!response.user.isAdmin && response.user.role !== "admin") {
+      if (!response.user.isAdmin && response.user.role !== "admin" && response.user.role !== "super_admin") {
         throw new Error("You do not have admin privileges");
       }
 

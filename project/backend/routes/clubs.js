@@ -494,12 +494,12 @@ router.patch('/:id/members/:memberId/reject', protect, clubLeader, async (req, r
 
 // @desc    Get club join requests
 // @route   GET /api/clubs/:id/join-requests
-// @access  Private/Admin
-// @access  Private/Club Leader
-router.get('/:id/join-requests', protect, clubLeader, async (req, res) => {
+// @access  Private
+router.get('/:id/join-requests', protect, async (req, res) => {
   try {
     const club = await Club.findById(req.params.id)
-      .populate('members.user', 'name username email profileImage');
+      .populate('members.user', 'name username email profileImage')
+      .populate('managedBy', 'name username role');
 
     if (!club) {
       return res.status(404).json({
@@ -508,15 +508,24 @@ router.get('/:id/join-requests', protect, clubLeader, async (req, res) => {
       });
     }
 
-    const isActualClubRep = 
+    const isSuperAdmin = req.user.role === 'super_admin';
+    const isClubAdmin = req.user.role === 'club_admin';
+    const isLeader =
       (club.leadership?.president?.toString() === req.user._id.toString()) ||
       (club.leadership?.vicePresident?.toString() === req.user._id.toString()) ||
       (club.leadership?.secretary?.toString() === req.user._id.toString());
-      
-    if (!isActualClubRep) {
+
+    if (!isSuperAdmin && !isClubAdmin && !isLeader) {
       return res.status(403).json({
         success: false,
-        message: 'Access Denied: Only Club Representatives can view join requests.'
+        message: 'Access Denied: Only club management can view join requests.'
+      });
+    }
+
+    if (isClubAdmin && (!club.managedBy || club.managedBy._id.toString() !== req.user._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: You do not manage this club.'
       });
     }
 

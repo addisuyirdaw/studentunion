@@ -75,7 +75,8 @@ export function Clubs() {
     date: new Date().toISOString().split('T')[0],
     documentUrl: "",
     file: null,
-    reportType: "ACTIVITY"
+    reportType: "ACTIVITY",
+    frequency: "monthly"
   });
   const [pendingReports, setPendingReports] = useState([]);
   const [showPendingReports, setShowPendingReports] = useState(false);
@@ -218,27 +219,11 @@ export function Clubs() {
       formData.append('description', reportFormData.description);
       formData.append('date', reportFormData.date);
       formData.append('reportType', reportFormData.reportType);
+      formData.append('frequency', reportFormData.frequency);
       if (reportFormData.documentUrl) formData.append('documentUrl', reportFormData.documentUrl);
       if (reportFormData.file) formData.append('file', reportFormData.file);
 
-      // Bypass Vite Proxy explicitly for multipart/form-data to prevent Boundary stream corruption!
-      const explicitHostUrl = `http://${window.location.hostname}:5000/api`;
-      const targetUrl = apiService.baseURL.startsWith('http') ? apiService.baseURL : explicitHostUrl;
-
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const response = await fetch(`${targetUrl}/reports/club/${clubId}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${user.token}`
-        },
-        body: formData
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || data.message || "Failed to submit report");
-      }
-
+      await apiService.submitClubReport(clubId, formData);
       toast.success("Report submitted successfully");
       setShowReportModal(false);
       setReportFormData({
@@ -247,7 +232,8 @@ export function Clubs() {
         date: new Date().toISOString().split('T')[0],
         documentUrl: "",
         file: null,
-        reportType: "ACTIVITY"
+        reportType: "ACTIVITY",
+        frequency: "monthly"
       });
     } catch (error) {
       console.error("Failed to submit report:", error);
@@ -996,9 +982,22 @@ export function Clubs() {
                         (Array.isArray(club.members) && club.members.some(m => (m.user === user._id || m.user?._id === user._id || m.user === user.id || m.user?._id === user.id) && m.status === 'approved'))) && (
                         <div className="absolute top-4 left-4 flex space-x-2 z-10">
                           <button
-                            onClick={(e) => { e.stopPropagation(); setSelectedClub(club); setShowReportModal(true); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedClub(club);
+                              setReportFormData({
+                                title: "",
+                                description: "",
+                                date: new Date().toISOString().split('T')[0],
+                                documentUrl: "",
+                                file: null,
+                                reportType: "ACTIVITY",
+                                frequency: "monthly"
+                              });
+                              setShowReportModal(true);
+                            }}
                             className="bg-purple-600 text-white p-2 rounded-full hover:bg-purple-700 transition-colors shadow-lg"
-                            title="Submit Report/Document">
+                            title="Open Upload Center">
                             <FileText className="w-4 h-4" />
                           </button>
                         </div>
@@ -1341,6 +1340,34 @@ export function Clubs() {
                   <p className="text-gray-600 text-sm">{selectedClubDetails.description}</p>
                 </div>
 
+                {((user?._id || user?.id) && (selectedClubDetails?.leadership?.president === (user?._id || user?.id) || selectedClubDetails?.leadership?.president?._id === (user?._id || user?.id) || selectedClubDetails?.managedBy === (user?._id || user?.id) || selectedClubDetails?.managedBy?._id === (user?._id || user?.id) || (selectedClubDetails?.members && selectedClubDetails.members.some(m => (m.user === user?._id || m.user?._id === user?._id || m.user === user?.id || m.user?._id === user?.id) && m.status === 'approved')))) && (
+                  <div className="mb-6 rounded-2xl bg-purple-50 border border-purple-100 p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-purple-900">Upload Center</p>
+                        <p className="text-sm text-purple-700">Submit activity reports, documents, or admin requests for this club. Your submission will be reviewed by the coordinator.</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedClub(selectedClubDetails);
+                          setReportFormData({
+                            title: "",
+                            description: "",
+                            date: new Date().toISOString().split('T')[0],
+                            documentUrl: "",
+                            file: null,
+                            reportType: "ACTIVITY",
+                            frequency: "monthly"
+                          });
+                          setShowReportModal(true);
+                        }}
+                        className="inline-flex items-center gap-2 self-start rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white hover:bg-purple-700 transition-colors">
+                        <FileText className="w-4 h-4" /> Open Upload Center
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Club Members List - Table Format */}
                 <div className="mb-6">
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -1412,6 +1439,26 @@ export function Clubs() {
                       onClick={() => fetchManagerPendingReports(selectedClubDetails._id || selectedClubDetails.id)}
                       className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors">
                       Review Member Submissions
+                    </button>
+                  )}
+                  {((user?._id || user?.id) && (selectedClubDetails?.leadership?.president === (user?._id || user?.id) || selectedClubDetails?.leadership?.president?._id === (user?._id || user?.id) || selectedClubDetails?.managedBy === (user?._id || user?.id) || selectedClubDetails?.managedBy?._id === (user?._id || user?.id) || (selectedClubDetails?.members && selectedClubDetails.members.some(m => (m.user === user?._id || m.user?._id === user?._id || m.user === user?.id || m.user?._id === user?.id) && m.status === 'approved')))) && (
+                    <button
+                      onClick={() => {
+                        setSelectedClub(selectedClubDetails);
+                        setReportFormData({
+                          title: "",
+                          description: "",
+                          date: new Date().toISOString().split('T')[0],
+                          documentUrl: "",
+                          file: null,
+                          reportType: "ACTIVITY",
+                          frequency: "monthly"
+                        });
+                        setShowReportModal(true);
+                      }}
+                      className="bg-purple-50 text-purple-700 border-2 border-purple-100 hover:border-purple-300 hover:bg-purple-100 transition-colors flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold shadow-sm">
+                      <FileText className="w-4 h-4" />
+                      Upload Center
                     </button>
                   )}
                   {(user?._id || user?.id) && (selectedClubDetails?.leadership?.president === (user?._id || user?.id) || selectedClubDetails?.leadership?.president?._id === (user?._id || user?.id)) && (
@@ -1582,7 +1629,7 @@ export function Clubs() {
               <div className="p-6 border-b border-gray-100 shrink-0 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <FileText className="text-purple-600" />
-                  {reportFormData.reportType === 'ANNUAL_REPORT' ? 'Submit Annual Report' : 'Submit Activity Report'}
+                  {reportFormData.reportType === 'ANNUAL_REPORT' ? 'Submit Annual Report' : reportFormData.reportType === 'DOCUMENT' ? 'Upload Club Document' : reportFormData.reportType === 'ADMIN_REQUEST' ? 'Submit Admin Request' : 'Submit Activity Report'}
                 </h2>
                 <button onClick={() => setShowReportModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
               </div>
@@ -1633,6 +1680,19 @@ export function Clubs() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                       placeholder="Describe what happened, the impact, and attendance..."
                     ></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Report Frequency *</label>
+                    <select
+                      required
+                      value={reportFormData.frequency}
+                      onChange={(e) => setReportFormData({ ...reportFormData, frequency: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="annually">Annually</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Document Link (Optional)</label>

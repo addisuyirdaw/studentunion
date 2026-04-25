@@ -170,6 +170,10 @@ const clubSchema = new mongoose.Schema({
       type: Number,
       default: 0
     }
+  },
+  managedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
   timestamps: true

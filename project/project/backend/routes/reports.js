@@ -46,7 +46,7 @@ router.post('/club/:clubId', protect, upload.single('file'), async (req, res) =>
     const data = req.file ? req.body : req.body;
     if (!req.body.title) { console.log('BODY IS EMPTY - MULTIPLE PARSING FAIL'); }
     
-    const { title, description, date, photos, documentUrl, reportType } = data;
+    const { title, description, date, photos, documentUrl, reportType, frequency } = data;
     // We intentionally map to /uploads/ instead of req.file.path to maintain valid browser URL static routing
     const fileUrl = req.file ? `/uploads/reports/${req.file.filename}` : undefined;
 
@@ -78,6 +78,7 @@ router.post('/club/:clubId', protect, upload.single('file'), async (req, res) =>
       photos: photos || [],
       documentUrl,
       fileUrl,
+      frequency: frequency || 'monthly',
       reportType: reportType || 'ACTIVITY',
       status: isLeader ? 'PENDING_REVIEW' : 'PENDING_MANAGER', // Leader -> Coordinator. Member -> Manager.
       submittedBy: req.user._id
@@ -164,6 +165,31 @@ router.get('/club/:clubId', protect, async (req, res) => {
   }
 });
 
+// @desc    Get all reports for super_admin
+// @route   GET /api/reports/all
+// @access  Private/Super Admin
+router.get('/all', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'Only super_admin can view all reports' });
+    }
+
+    const reports = await ActivityReport.find({})
+      .populate('club', 'name category')
+      .populate('submittedBy', 'name email profileImage')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: reports.length,
+      reports
+    });
+  } catch (error) {
+    console.error('Get all reports error:', error);
+    res.status(500).json({ success: false, message: 'Server error retrieving all reports' });
+  }
+});
+
 // @desc    Get all reports (Main Coordinator / Admin)
 // @route   GET /api/reports/pending
 // @access  Private/Coordinator
@@ -201,7 +227,7 @@ router.patch('/:id/review', protect, async (req, res) => {
     }
 
     const club = report.club;
-    const isCoordinator = req.user.isAdmin || req.user.role === 'clubs_coordinator';
+    const isCoordinator = req.user.isAdmin || req.user.role === 'clubs_coordinator' || req.user.role === 'super_admin';
     const isLeader = club && (
       (club.leadership?.president?.toString() === req.user._id.toString()) ||
       (club.leadership?.vicePresident?.toString() === req.user._id.toString()) ||

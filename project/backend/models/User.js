@@ -57,7 +57,7 @@ const userSchema = new mongoose.Schema(
 		},
 		role: {
 			type: String,
-			enum: ["student", "admin", "president", "council_president", "council_secretary", "clubs_coordinator", "academic_affairs"],
+			enum: ["student", "super_admin", "club_admin", "admin", "president", "council_president", "council_secretary", "clubs_coordinator", "academic_affairs"],
 			default: "student",
 		},
 		isLocked: {

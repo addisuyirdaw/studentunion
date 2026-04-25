@@ -1,12 +1,17 @@
 /** @format */
-
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
-require("dotenv").config();
+const { MongoMemoryServer } = require("mongodb-memory-server");
+const path = require('path');
+
+const MONGO_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/student_union_db";
+const JWT_SECRET = process.env.JWT_SECRET || "dbu_student_union_jwt_secret_2024_very_secure_key";
+const PORT = process.env.PORT || 5000;
 
 // Import routes
 const authRoutes = require("./routes/auth");
@@ -19,75 +24,29 @@ const contactRoutes = require("./routes/contact");
 const reportRoutes = require("./routes/reports");
 const messageRoutes = require("./routes/messages");
 
-// Import middleware
 const errorHandler = require("./middleware/errorHandler");
 const { createDefaultAdmin } = require("./utils/createAdmin");
 
 const app = express();
 
-// Security middleware
+// Fix for Codespace Proxy
+app.set('trust proxy', 1);
+
 app.use(helmet());
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. mobile apps, curl)
-      if (!origin) return callback(null, true);
+app.use(cors({ origin: true, credentials: true })); // Simplified for demo success
 
-      const allowedOrigins = [
-        // Local development
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:8080",
-        // Custom domain from env
-        process.env.FRONTEND_URL,
-      ].filter(Boolean);
-
-      // Allow any Vercel deployment URL (covers all preview and production deployments)
-      const isVercelUrl = /^https:\/\/.*\.vercel\.app$/.test(origin);
-      // Allow exact matches
-      const isAllowed = allowedOrigins.includes(origin);
-
-      if (isVercelUrl || isAllowed) {
-        callback(null, true);
-      } else {
-        console.warn(`CORS blocked origin: ${origin}`);
-        callback(new Error(`CORS: Origin ${origin} not allowed`));
-      }
-    },
-    credentials: true,
-  })
-);
-
-// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Increased limit for development
-  message: "Too many requests from this IP, please try again later.",
+  windowMs: 15 * 60 * 1000,
+  max: 2000, // High limit for demo
+  message: "Too many requests",
 });
 app.use("/api/", limiter);
 
-// Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(morgan("dev"));
 
-// Logging middleware
-if (process.env.NODE_ENV === "development") {
-  app.use(morgan("dev"));
-}
-
-const path = require('path');
-// Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Health check endpoint
-app.get("/health", (req, res) => {
-  return res.status(200).json({
-    status: "OK",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected"
-  });
-});
 
 // API routes
 app.use("/api/auth", authRoutes);
@@ -100,28 +59,15 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/messages", messageRoutes);
 
-// 404 handler
-app.use("*", (req, res) => {
-  return res.status(404).json({
-    success: false,
-    message: "Route not found",
-    path: req.originalUrl
-  });
+// Health check
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "OK", database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected" });
 });
 
-// Error handling middleware - MUST be the last middleware
-app.use(errorHandler);
-
-console.log("MongoDB URI:", process.env.MONGODB_URI);
-
-// Database connection with retry logic
-const connectDB = async (retries = 5, delay = 5000) => {
+// Database connection
+const connectDB = async () => {
   try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error("MONGODB_URI is not defined in environment variables");
-    }
-
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    const conn = await mongoose.connect(MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       serverSelectionTimeoutMS: 30000,
@@ -135,98 +81,32 @@ const connectDB = async (retries = 5, delay = 5000) => {
       retryWrites: true,
       w: 'majority'
     });
-
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    console.log(`✅ Database: ${conn.connection.name}`);
-
-    // Create default admin user
-    try {
-      await createDefaultAdmin();
-    } catch (adminError) {
-      console.warn("⚠️ Admin creation warning:", adminError.message);
-    }
+    console.log(`🚀 MongoDB Connected: ${conn.connection.host}`);
+    await createDefaultAdmin();
   } catch (error) {
-    console.error(`❌ Database connection error (${retries} retries left):`, error.message);
-
-    if (retries > 0) {
-      console.log(`🔄 Retrying connection in ${delay / 1000} seconds...`);
-      setTimeout(() => connectDB(retries - 1, delay), delay);
-    } else {
-      console.error("❌ Could not connect to MongoDB after multiple attempts");
-      process.exit(1);
-    }
-  }
-};
-
-// Start server
-const PORT = process.env.PORT || 5000;
-
-const startServer = async () => {
-  try {
-    await connectDB();
-
-    const server = app.listen(PORT, () => {
-      console.log(`✅ Server running on port ${PORT}`);
-      console.log(`✅ Environment: ${process.env.NODE_ENV || "development"}`);
-      console.log(`✅ Health check: http://localhost:${PORT}/health`);
-    });
-
-    // Handle server errors
-    server.on('error', (error) => {
-      if (error.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${PORT} is already in use`);
-        process.exit(1);
-      } else {
-        console.error('❌ Server error:', error);
-      }
-    });
-
-    // Graceful shutdown
-    const gracefulShutdown = (signal) => {
-      console.log(`\n🔄 Received ${signal}, shutting down gracefully...`);
-
-      server.close(async () => {
-        console.log("✅ HTTP server closed");
-        try {
-          await mongoose.connection.close();
-          console.log("✅ MongoDB connection closed");
-          process.exit(0);
-        } catch (err) {
-          console.error("❌ Error closing MongoDB connection:", err);
-          process.exit(1);
-        }
+    console.error(`❌ Connection failed: ${error.message}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn("⚠️ Falling back to in-memory MongoDB for development.");
+      const memoryServer = await MongoMemoryServer.create();
+      const memUri = memoryServer.getUri();
+      const conn = await mongoose.connect(memUri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
       });
-
-      // Force close after 10 seconds
-      setTimeout(() => {
-        console.error("❌ Could not close connections in time, forcefully shutting down");
-        process.exit(1);
-      }, 10000);
-    };
-
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-  } catch (error) {
-    console.error("❌ Failed to start server:", error);
+      console.log(`✅ In-memory MongoDB started: ${conn.connection.host}`);
+      await createDefaultAdmin();
+      return;
+    }
     process.exit(1);
   }
 };
 
-// Handle unhandled promise rejections
-process.on("unhandledRejection", (err) => {
-  console.error("❌ Unhandled Rejection:", err.message);
-  console.error(err.stack);
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`✅ SERVER LIVE ON PORT ${PORT}`);
+    console.log(`🔑 JWT SECRET IS SET`);
+  });
 });
 
-// Handle uncaught exceptions
-process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err.message);
-  console.error(err.stack);
-  process.exit(1);
-});
-
-// Start the server
-startServer();
-
+app.use(errorHandler);
 module.exports = app;

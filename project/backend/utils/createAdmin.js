@@ -3,87 +3,80 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 
+const Club = require('../models/Club');
+
 const createDefaultAdmin = async () => {
   try {
-    // Create additional admin users with different roles
-    const additionalAdmins = [
+    const adminUsers = [
       {
-        name: "System Administrator",
+        name: "System Coordinator",
         username: "dbu10101030",
-        email: "admin@dbu.edu.et",
-        password: "Admin123#",
-        role: "admin",
+        email: "coordinator@dbu.edu.et",
+        password: "admin123",
+        role: "super_admin",
         isAdmin: true,
         department: "Administration",
         year: "1st Year",
       },
       {
-        name: "President Admin",
+        name: "Club Representative",
         username: "dbu10101020",
-        email: "president@dbu.edu.et",
-        password: "Admin123#",
-        role: "admin",
-        isAdmin: true,
-        department: "Student Affairs",
-        year: "1st Year",
-      },
-      {
-        name: "Demo Admin",
-        username: "dbu10101011",
-        email: "demoadmin@dbu.edu.et",
-        password: "Admin123#",
-        role: "admin",
-        isAdmin: true,
-        department: "Administration",
-        year: "1st Year",
-      },
-      {
-        name: "Clubs Admin",
-        username: "dbu10101040",
-        email: "clubs@dbu.edu.et",
-        password: "Admin123#",
-        role: "admin",
+        email: "clubrep@dbu.edu.et",
+        password: "admin123",
+        role: "club_admin",
         isAdmin: true,
         department: "Student Activities",
         year: "1st Year",
-      },
+      }
     ];
 
-    for (const adminData of additionalAdmins) {
-      const existingAdmin = await User.findOne({
-        username: adminData.username,
-      });
+    let clubRepUser = null;
 
-      if (!existingAdmin) {
-        const admin = await User.create({
-          ...adminData,
-          password: adminData.password
+    for (const userData of adminUsers) {
+      const existingUser = await User.findOne({ username: userData.username });
+      const hashedPassword = await bcrypt.hash(userData.password, 12);
+
+      if (!existingUser) {
+        const user = await User.create({
+          ...userData,
+          password: hashedPassword
         });
-        console.log(`✅ Admin created: ${adminData.username}`);
+        console.log(`✅ Admin created: ${userData.username}`);
+        if (userData.username === 'dbu10101020') {
+          clubRepUser = user;
+        }
       } else {
-        console.log(`ℹ️ Admin already exists: ${adminData.username}`);
-        
-        // Hash password if we're updating it
-        const hashedPassword = await bcrypt.hash(adminData.password, 12);
-        
-        // UPDATE EXISTING ADMIN to ensure proper privileges
         await User.findOneAndUpdate(
-          { username: adminData.username },
-          { 
+          { username: userData.username },
+          {
+            name: userData.name,
+            email: userData.email,
+            password: hashedPassword,
+            role: userData.role,
             isAdmin: true,
-            role: 'admin',
             isActive: true,
             isLocked: false,
             loginAttempts: 0,
             lockUntil: undefined,
-            password: hashedPassword, // Update password
-            name: adminData.name, // Ensure name is correct
-            email: adminData.email, // Ensure email is correct
-            department: adminData.department,
-            year: adminData.year
-          }
+            department: userData.department,
+            year: userData.year
+          },
+          { new: true }
         );
-        console.log(`✅ Admin privileges updated for: ${adminData.username}`);
+        console.log(`✅ Admin updated: ${userData.username}`);
+
+        if (userData.username === 'dbu10101020') {
+          clubRepUser = await User.findOne({ username: 'dbu10101020' });
+        }
+      }
+    }
+
+    if (clubRepUser) {
+      const clubs = await Club.find().sort({ _id: 1 }).limit(3);
+      for (const club of clubs) {
+        club.managedBy = clubRepUser._id;
+        await club.save();
+        console.log(`✅ Assigned club ${club.name} to club_admin ${clubRepUser.username}`);
       }
     }
 

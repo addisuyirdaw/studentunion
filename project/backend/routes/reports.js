@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const ActivityReport = require('../models/ActivityReport');
 const Club = require('../models/Club');
+const reportController = require('../controllers/reportController');
 const { protect, adminOnly, clubLeader } = require('../middleware/auth');
 
 const router = express.Router();
@@ -37,66 +38,15 @@ router.get('/download/:filename', (req, res) => {
 });
 
 // @desc    Submit new activity report (Club Rep or Member)
+// @route   POST /api/reports
+// @access  Private/Club Leader or Member
+router.post('/', protect, upload.single('file'), reportController.submitReport);
+
+// @desc    Submit new activity report via club-specific route
 // @route   POST /api/reports/club/:clubId
 // @access  Private/Club Leader or Member
-router.post('/club/:clubId', protect, upload.single('file'), async (req, res) => {
-  try {
-    console.log('Keys received:', Object.keys(req.body));
-    console.log('FILE RECEIVED:', req.file);
-    const data = req.file ? req.body : req.body;
-    if (!req.body.title) { console.log('BODY IS EMPTY - MULTIPLE PARSING FAIL'); }
-    
-    const { title, description, date, photos, documentUrl, reportType } = data;
-    // We intentionally map to /uploads/ instead of req.file.path to maintain valid browser URL static routing
-    const fileUrl = req.file ? `/uploads/reports/${req.file.filename}` : undefined;
+router.post('/club/:clubId', protect, upload.single('file'), reportController.submitReport);
 
-    // Check if user is member or leader
-    const club = await Club.findById(req.params.clubId);
-    if (!club) return res.status(404).json({ success: false, message: 'Club not found' });
-
-    const isLeader = (club.leadership?.president?.toString() === req.user._id?.toString()) ||
-      (club.leadership?.vicePresident?.toString() === req.user._id?.toString()) ||
-      req.user.role === 'president' || req.user.role === 'clubs_coordinator' || req.user.isAdmin;
-
-    const isMember = club.members?.find(m => m.user?.toString() === req.user._id?.toString() && m.status === 'approved');
-
-    if (!isLeader && !isMember) {
-      return res.status(403).json({ success: false, message: 'You must be a member or leader of this club to submit a report' });
-    }
-
-    // Only leaders can submit structured administrative documents
-    if (!isLeader && reportType && ['ANNUAL_REPORT', 'DOCUMENT', 'ADMIN_REQUEST'].includes(reportType)) {
-      return res.status(403).json({ success: false, message: 'Only Club Representatives can submit structured administrative documents.' });
-    }
-
-    // Create report
-    const report = await ActivityReport.create({
-      club: req.params.clubId,
-      title,
-      description: description || 'Attached file report',
-      date: date || new Date(),
-      photos: photos || [],
-      documentUrl,
-      fileUrl,
-      reportType: reportType || 'ACTIVITY',
-      status: isLeader ? 'PENDING_REVIEW' : 'PENDING_MANAGER', // Leader -> Coordinator. Member -> Manager.
-      submittedBy: req.user._id
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Report submitted successfully',
-      report
-    });
-  } catch (error) {
-    console.error('Submit report error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error submitting report',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
 
 // @desc    Get pending reports from members (Club Rep)
 // @route   GET /api/reports/club/:clubId/pending-manager
@@ -128,43 +78,15 @@ router.get('/club/:clubId/pending-manager', protect, async (req, res) => {
 // @route   GET /api/reports/club/:clubId
 // @access  Private
 // Allows Club Reps to see all reports, students to see only PUBLISHED
-router.get('/club/:clubId', protect, async (req, res) => {
-  try {
-    const club = await Club.findById(req.params.clubId);
-    if (!club) return res.status(404).json({ success: false, message: 'Club not found' });
+router.get('/club/:clubId', protect, reportController.getClubReports);
 
-    // Check if user is leader or admin/coordinator
-    const isLeader = (club.leadership?.president?.toString() === req.user._id.toString()) ||
-      (club.leadership?.vicePresident?.toString() === req.user._id.toString()) ||
-      req.user.role === 'president' ||
-      req.user.role === 'clubs_coordinator' ||
-      req.user.isAdmin;
 
-    let query = { club: req.params.clubId };
+// @desc    Get all reports for super_admin
+// @route   GET /api/reports/all
+// @access  Private/Super Admin
+router.get('/all', protect, reportController.getAllReports);
 
-    // If not a leader/coordinator, they can only see PUBLISHED reports
-    if (!isLeader) {
-      // Must be a member to see even published reports (or optionally they can be public?)
-      // We will assume published reports are public/member-accessible
-      query.status = 'PUBLISHED';
-    }
-
-    const reports = await ActivityReport.find(query)
-      .populate('submittedBy', 'name email profileImage')
-      .sort({ createdAt: -1 });
-
-    res.json({
-      success: true,
-      count: reports.length,
-      reports
-    });
-  } catch (error) {
-    console.error('Get club reports error:', error);
-    res.status(500).json({ success: false, message: 'Server error retrieving reports' });
-  }
-});
-
-// @desc    Get all reports (Main Coordinator / Admin)
+// @desc    Get all pending reports (Main Coordinator / Admin)
 // @route   GET /api/reports/pending
 // @access  Private/Coordinator
 router.get('/pending', protect, async (req, res) => {
@@ -232,6 +154,11 @@ router.patch('/:id/review', protect, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error reviewing report' });
   }
 });
+
+// @desc    Delete a report
+// @route   DELETE /api/reports/:id
+// @access  Private/Super Admin or Club Admin
+router.delete('/:id', protect, reportController.deleteReport);
 
 // @desc    Coordinator Inbox (All reports)
 // @route   GET /api/reports/inbox

@@ -45,6 +45,11 @@ const activityReportSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  frequency: {
+    type: String,
+    enum: ['weekly', 'monthly', 'annually'],
+    required: [true, 'Please specify the report frequency']
+  },
   reportType: {
     type: String,
     enum: ['ACTIVITY', 'ANNUAL_REPORT', 'DOCUMENT', 'ADMIN_REQUEST'],

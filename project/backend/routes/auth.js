@@ -46,8 +46,9 @@ if (smtpAuth) {
 }
 
 // Generate JWT Token
+const JWT_SECRET = "dbu_student_union_jwt_secret_2024_very_secure_key";
 const generateToken = (id) => {
-	return jwt.sign({ id }, process.env.JWT_SECRET, {
+	return jwt.sign({ id }, JWT_SECRET, {
 		expiresIn: process.env.JWT_EXPIRE || "7d",
 	});
 };

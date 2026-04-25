@@ -260,6 +260,11 @@ class ApiService {
     return response.reports || [];
   }
 
+  async getAllReports() {
+    const response = await this.request('/reports/all');
+    return response.reports || [];
+  }
+
   async reviewReport(reportId, reviewData) {
     return this.request(`/reports/${reportId}/review`, {
       method: 'PATCH',

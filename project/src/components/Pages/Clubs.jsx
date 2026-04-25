@@ -96,15 +96,25 @@ export function Clubs() {
     return matchesCategory && matchesSearch;
   });
 
+  const getManagedById = (club) => {
+    if (!club?.managedBy) return null;
+    if (typeof club.managedBy === 'string') return club.managedBy;
+    return club.managedBy._id ? club.managedBy._id.toString() : club.managedBy.toString();
+  };
+
+  const canManageThisClub = (club) => {
+    if (!user) return false;
+    if (user.role === 'super_admin') return true;
+    if (user.role === 'club_admin') {
+      const managedById = getManagedById(club);
+      return managedById && user._id && managedById === user._id.toString();
+    }
+    return false;
+  };
+
   const handleJoinClub = (club) => {
     if (!user) {
       toast.error("Please login to join clubs");
-      return;
-    }
-
-    if (user.isAdmin && !isAcademicAdmin) {
-      // Show club details for admin instead of join form
-      handleViewMembers(club);
       return;
     }
 
@@ -778,16 +788,16 @@ export function Clubs() {
                     </div>
 
                     <button
-                      onClick={() => (user?.isAdmin && !isAcademicAdmin) ? handleViewMembers(club) : handleJoinClub(club)}
-                      className={`w-full py-3 rounded-xl font-bold transition-all transform hover:scale-[1.02] shadow-md border-b-4 active:border-b-0 active:translate-y-1 ${(user?.isAdmin && !isAcademicAdmin)
+                      onClick={() => canManageThisClub(club) ? handleViewMembers(club) : handleJoinClub(club)}
+                      className={`w-full py-3 rounded-xl font-bold transition-all transform hover:scale-[1.02] shadow-md border-b-4 active:border-b-0 active:translate-y-1 ${canManageThisClub(club)
                         ? "bg-green-600 text-white hover:bg-green-700 border-green-800"
                         : "bg-blue-600 text-white hover:bg-blue-700 border-blue-800"
                         }`}>
                       <div className="flex items-center justify-center gap-2">
                         <Users className="w-5 h-5" />
                         <span>
-                          {(user?.isAdmin && !isAcademicAdmin)
-                            ? "Manage Club & View Members"
+                          {canManageThisClub(club)
+                            ? "Manage Club"
                             : "Join Club"}
                         </span>
                       </div>

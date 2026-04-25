@@ -232,12 +232,16 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState("7d");
   const [recentActivity, setRecentActivity] = useState([]);
+  const [allReports, setAllReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reviewingReport, setReviewingReport] = useState(null);
 
   // Modal states
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchAllReports();
   }, [selectedTimeframe]);
 
   const fetchDashboardData = async () => {
@@ -303,6 +307,60 @@ export function AdminDashboard() {
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllReports = async () => {
+    try {
+      setLoadingReports(true);
+      const reports = await apiService.getAllReports();
+      setAllReports(reports);
+    } catch (error) {
+      console.error('Failed to fetch all reports:', error);
+      toast.error('Failed to load reports');
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const downloadReportFile = (report) => {
+    if (!report.fileUrl) {
+      toast.error('No file attached to download');
+      return;
+    }
+
+    const baseUrl = apiService.baseURL.replace(/\/api$/, '');
+    const downloadUrl = report.fileUrl.startsWith('http') ? report.fileUrl : `${baseUrl}${report.fileUrl}`;
+    window.open(downloadUrl, '_blank');
+  };
+
+  const formatFrequencyLabel = (frequency) => {
+    if (!frequency) return 'Unknown';
+    switch (frequency.toLowerCase()) {
+      case 'weekly':
+        return 'Weekly';
+      case 'monthly':
+        return 'Monthly';
+      case 'annually':
+      case 'annual':
+      case 'annualy':
+        return 'Annual';
+      default:
+        return frequency.charAt(0).toUpperCase() + frequency.slice(1).toLowerCase();
+    }
+  };
+
+  const handleReviewReport = async (reportId) => {
+    try {
+      setReviewingReport(reportId);
+      await apiService.reviewReport(reportId, { status: 'PUBLISHED' });
+      toast.success('Report marked as reviewed');
+      fetchAllReports();
+    } catch (error) {
+      console.error('Failed to review report:', error);
+      toast.error(error.message || 'Failed to review report');
+    } finally {
+      setReviewingReport(null);
     }
   };
 

@@ -36,6 +36,11 @@ const activityReportSchema = new mongoose.Schema({
     enum: ['PENDING_MANAGER', 'PENDING_REVIEW', 'RETURNED', 'PUBLISHED', 'APPROVED'],
     default: 'PENDING_REVIEW'
   },
+  frequency: {
+    type: String,
+    enum: ['weekly', 'monthly', 'annually'],
+    default: 'monthly'
+  },
   feedback: {
     type: String,
     trim: true

@@ -370,6 +370,18 @@ class ApiService {
     return this.request('/contact/stats/overview');
   }
 
+  async getAllReports() {
+    const response = await this.request('/reports/all');
+    return response.reports || [];
+  }
+
+  async reviewReport(reportId, reviewData) {
+    return this.request(`/reports/${reportId}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify(reviewData)
+    });
+  }
+
   // Users endpoints (Admin only)
   async getUsers(params = {}) {
     const queryString = new URLSearchParams(params).toString();
