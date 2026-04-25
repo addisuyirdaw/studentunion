@@ -24,15 +24,11 @@ const { createDefaultAdmin } = require("./utils/createAdmin");
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
-app.use(
-  cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? ["https://your-frontend-domain.com"]
-        : ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
-    credentials: true,
+// Security middlewareapp.use(helmet());
+
+app.use(cors({
+  origin: ['https://student-union-website.onrender.com', 'http://localhost:5173'],
+  credentials: true,
   })
 );
 
