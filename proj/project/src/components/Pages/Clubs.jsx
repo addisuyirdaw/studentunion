@@ -1215,7 +1215,7 @@ export function Clubs() {
                                 {act.date && <span className="text-sm text-gray-500">{new Date(act.date).toLocaleDateString()}</span>}
                               </div>
                               <p className="text-sm text-gray-700 mb-2">{act.description}</p>
-                              {act.fileUrl && <a href={act.fileUrl.startsWith('http') ? act.fileUrl : `http://localhost:5000${act.fileUrl}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">View Document / Link</a>}
+                              {act.fileUrl && <a href={act.fileUrl.startsWith('http') ? act.fileUrl : `https://studentunion-dcjr.onrender.com0${act.fileUrl}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">View Document / Link</a>}
                               <p className="text-xs text-gray-400 mt-2">Posted: {new Date(act.createdAt).toLocaleString()}</p>
                             </div>
                           ))}
@@ -1372,7 +1372,7 @@ export function Clubs() {
                         <div className="text-right flex flex-col items-end shrink-0">
                           <p className="text-xs text-gray-400 mb-2">{report?.date ? new Date(report.date).toLocaleDateString() : 'Unknown date'}</p>
                           {report?.fileUrl && (
-                            <a href={report.fileUrl.startsWith('http') ? report.fileUrl : `http://localhost:5000${report.fileUrl}`} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium">
+                            <a href={report.fileUrl.startsWith('http') ? report.fileUrl : `https://studentunion-dcjr.onrender.com${report.fileUrl}`} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium">
                               Download Document
                             </a>
                           )}
