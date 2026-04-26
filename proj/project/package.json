@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
+  "dev": "vite",
+  "build": "vite build",
+  "render-build": "npm install",
+  "render-start": "node backend/server.js"
+},
   "dependencies": {
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.344.0",
